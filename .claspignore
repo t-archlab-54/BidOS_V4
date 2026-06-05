@@ -1,0 +1,10 @@
+.git/**
+.github/**
+node_modules/**
+README.md
+*.md
+*.backup.js
+*.test.js
+*.spec.js
+.env
+.env.*
