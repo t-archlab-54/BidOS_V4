@@ -21,7 +21,8 @@ const CFG = {
       { label: "Warm cache", fn: "WARM_URL_NORMALIZER_RUNTIME" },
       { separator: true },
       { label: "Send manual message", fn: "uiSendManualMessage" },
-      { label: "Run reports now", fn: "runReportsNow" },
+      { label: "Run reports now", fn: "uiRunReportNow" },
+      { label: "Clean bot history", fn: "uiCleanBotHistory" },
     ]
   },
 
@@ -178,20 +179,20 @@ const CFG = {
   },
 
   CHARTS: {
-    DASHBOARD_SHEET: "Dashboard", // where the title source cells live
+    DASHBOARD_SHEET: "Dashboard",
     TITLE_RULES: {
       CHART1: {
         title: "Dashboard!A2",
         sheet: "Chart",
         chartIndex: 0,
-        watchCells: ["C1", "F1"] // start, end
+        watchCells: ["C1", "F1"]
       },
 
       CHART2: {
         title: "Dashboard!A10",
         sheet: "Chart",
         chartIndex: 1,
-        watchCells: ["C1", "F1", "A9"] //start, end, status
+        watchCells: ["C1", "F1", "A9"]
       }
     }
   },
@@ -249,13 +250,19 @@ CFG.MAPPER_STATE_KEY = CFG.JOB_MAPPER.STATE_KEY;
 CFG.MAPPER_CHUNK_SIZE = CFG.JOB_MAPPER.CHUNK_SIZE;
 CFG.MAPPER_MAX_RUNTIME_MS = CFG.JOB_MAPPER.MAX_RUNTIME_MS;
 CFG.MAPPER_LEASE_MS = CFG.MAPPER_MAX_RUNTIME_MS;
-
 CFG.CANONICAL_STACK_TAG_SET = new Set(
   Object.values(CFG.STACK_TAGS).map(v =>
-    String(v).trim().toUpperCase().replace(/\s+/g, "_")
+    String(v)
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, "_")
   )
 );
 
 function SHOW_ALL_SCRIPT_PROPERTIES() {
-  Logger.log(PropertiesService.getScriptProperties().getProperties());
+  Logger.log(
+    PropertiesService
+      .getScriptProperties()
+      .getProperties()
+  );
 }
