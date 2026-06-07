@@ -405,16 +405,21 @@ function postSlackText_(channelOrUserId, text) {
   const token = getSlackToken_();
   const channelId = getSlackConversationId_(channelOrUserId);
 
+  const hasUrl = /https?:\/\/\S+/i.test(text);
+  const payload = {
+    channel: channelId,
+    text: text,
+    unfurl_links: hasUrl,
+    unfurl_media: hasUrl
+  };
+
   const response = UrlFetchApp.fetch('https://slack.com/api/chat.postMessage', {
     method: 'post',
     contentType: 'application/json',
     headers: {
       Authorization: `Bearer ${token}`
     },
-    payload: JSON.stringify({
-      channel: channelId,
-      text: text
-    }),
+    payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
 
