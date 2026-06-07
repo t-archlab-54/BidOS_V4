@@ -18,7 +18,7 @@
 
 const CONFIG = CFG.URL_NORMALIZER;
 
-const AUTO_NORMALIZE_SHEET_SET = new Set(CFG.JOB_SHEETS_FALLBACK);
+const AUTO_NORMALIZE_SHEET_SET = new Set(CFG.SHEETS.JOB_FALLBACK);
 
 const TRACKING_PARAM_PREFIXES = [
   "utm_",
@@ -311,54 +311,49 @@ function RESET_NORMALIZE_STATUS() {
 /**
  * Handles one-cell edits and multi-row pasted links.
  */
-function onEdit(e) {
+function handleUrlRulesEdit_(e) {
+  MEMORY_RULES_CACHE = null;
 
   try {
-    if (!e || !e.range) return;
+    CacheService.getScriptCache().remove(
+      CFG.URL_NORMALIZER.RULES_CACHE_KEY
+    );
+  } catch (err) { }
 
-    const sh = e.range.getSheet();
-    const sheetName = sh.getName();
-
-    // If headers are edited/moved/renamed, clear cached header columns.
-    if (e.range.getRow() === CONFIG.HEADER_ROW) {
-      MEMORY_HEADER_COL_CACHE = Object.create(null);
-    }
-
-    if (sheetName === CONFIG.RULES_SHEET_NAME) {
-      MEMORY_RULES_CACHE = null;
-
-      try {
-        CacheService.getScriptCache().remove(CONFIG.RULES_CACHE_KEY);
-      } catch (e) { }
-
-      SpreadsheetApp.getActive().toast(
-        "URL_RULES edited, but not applied yet. Run UPDATE_RULES_SNAPSHOT_FROM_SHEET() to apply changes.",
-        "URL Normalizer",
-        5
-      );
-      return;
-    }
-
-    if (!AUTO_NORMALIZE_SHEET_SET.has(sheetName)) return;
-    if (e.range.getRow() <= CONFIG.HEADER_ROW) return;
-
-    const jobUrlCol = getHeaderColumn_(sh, CONFIG.JOB_URL_HEADER);
-    if (!jobUrlCol) return;
-
-    const startCol = e.range.getColumn();
-    const endCol = startCol + e.range.getNumColumns() - 1;
-    if (jobUrlCol < startCol || jobUrlCol > endCol) return;
-
-    normalizeSpecificRowsSafe_(sh, jobUrlCol, e.range.getRow(), e.range.getNumRows(), {
-      source: "onEdit",
-      expandRedirects: false,
-      chunkSize: CONFIG.DEFAULT_CHUNK_SIZE
-    });
-  } catch (err) {
-    console.error("onEdit normalize error:", err && err.stack ? err.stack : err);
-  }
+  SpreadsheetApp.getActive().toast(
+    "URL_RULES edited, but not applied yet. Run UPDATE_RULES_SNAPSHOT_FROM_SHEET() to apply changes.",
+    "URL Normalizer",
+    5
+  );
 }
 
+function handleJobSheetEdit_(e) {
+  const sh = e.range.getSheet();
+
+  const jobUrlCol = getHeaderColumn_(
+    sh,
+    CFG.URL_NORMALIZER.JOB_URL_HEADER
+  );
+
+  if (!jobUrlCol) return;
+
+  const startCol = e.range.getColumn();
+  const endCol = startCol + e.range.getNumColumns() - 1;
+
+  if (jobUrlCol < startCol || jobUrlCol > endCol) return;
+
+  normalizeSpecificRowsSafe_(
+    sh,
+    jobUrlCol,
+    e.range.getRow(),
+    e.range.getNumRows(),
+    {
+      source: "onEdit",
+      expandRedirects: false,
+      chunkSize: CFG.URL_NORMALIZER.DEFAULT_CHUNK_SIZE
+    }
+  );
+}
 /**
  * Main safe batch runner.
  * Processes selected visible rows first. If no selection, processes visible rows in whole sheet.
@@ -1300,7 +1295,7 @@ function writeStatusSheet_(status) {
 
   const k = CFG.STATUS_KEYS.NORMALIZE;
   const rows = [
-    [CFG.HEADERS.STATUS.NORMALIZE_TITLE, CFG.HEADERS.STATUS.VALUE],
+    [CFG.STATUS.NORMALIZE_TITLE, CFG.STATUS.VALUE],
     [k.STATE, status.state || ""],
     [k.SOURCE, status.source || ""],
     [k.SHEET, status.sheetName || ""],
@@ -1322,11 +1317,11 @@ function writeStatusSheet_(status) {
 
   // Only clear the normalize status block (A:B). Keep column C as spacer and D:E for job mapping.
   const clearRows = Math.max(sh.getLastRow(), rows.length, 1);
-  sh.getRange(CFG.STATUS_LAYOUT.HEADER_ROW, CFG.STATUS_LAYOUT.NORMALIZE.START_COL, clearRows, CFG.STATUS_LAYOUT.NORMALIZE.WIDTH).clearContent();
-  sh.getRange(CFG.STATUS_LAYOUT.HEADER_ROW, CFG.STATUS_LAYOUT.NORMALIZE.START_COL, rows.length, CFG.STATUS_LAYOUT.NORMALIZE.WIDTH).setValues(rows);
-  sh.getRange(CFG.STATUS_LAYOUT.HEADER_ROW, CFG.STATUS_LAYOUT.NORMALIZE.SPACER_COL).setValue("");
-  sh.setFrozenRows(1);
-  sh.autoResizeColumns(CFG.STATUS_LAYOUT.NORMALIZE.START_COL, CFG.STATUS_LAYOUT.NORMALIZE.WIDTH);
+
+  sh.getRange(CFG.STATUS.HEADER_ROW,CFG.STATUS.NORMALIZE_START_COL,clearRows,CFG.STATUS.BLOCK_WIDTH).clearContent();
+
+  sh.getRange(CFG.STATUS.HEADER_ROW,CFG.STATUS.NORMALIZE_START_COL,rows.length,CFG.STATUS.BLOCK_WIDTH).setValues(rows);
+
 }
 
 function TEST_ONE_URL() {

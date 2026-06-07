@@ -77,54 +77,19 @@ const CFG = {
       DROP_PARAMS: "drop_params",
       NOTES: "notes"
     },
-    STATUS: {
-      NORMALIZE_TITLE: "Normalize status key",
-      JOB_MAP_TITLE: "Job map status key",
-      VALUE: "value"
-    }
   },
 
-  VALUES: {
-    DEFAULT_STACK: "SWE",
-    DEFAULT_REGION: "GEN",
-    PROFILE_DEFAULT_NAME: "Profile",
-    PROFILE_ACTIVE_DEFAULT: "active",
-    PROFILE_INACTIVE: ["inactive", "false", "no", "n", "0", "disabled", "off", ""],
-    PROFILE_OUTPUT_STATUS: {
-      TODO: "TODO",
-      ERROR: "ERROR"
-    },
-    BOOLEAN_TEXT: {
-      TRUE: "TRUE",
-      FALSE: "FALSE",
-      ON: "ON",
-      OFF: "OFF"
-    },
-    RUN_STATE: {
-      READY: "READY",
-      RUNNING: "RUNNING",
-      DONE: "DONE",
-      ERROR: "ERROR",
-      STOPPED_BEFORE_TIMEOUT: "STOPPED_BEFORE_TIMEOUT"
-    },
-    FILE_LOOKUP: {
-      INVALID_URL: "Invalid URL",
-      NO_ACCESS: "No access",
-      DATE_FORMAT: "MM/dd"
-    }
+  STATUS: {
+    HEADER_ROW: 1,
+    BLOCK_WIDTH: 2,
 
-  },
+    VALUE: "value",
 
-  STACK_FILTER_TABLE_RANGE: "F1:L16",
+    NORMALIZE_TITLE: "Normalize status key",
+    NORMALIZE_START_COL: 1,
 
-  STACK_TAGS: {
-
-    SWE: "SWE",
-
-    AI: "AI",
-
-    QA: "QA"
-
+    JOB_MAP_TITLE: "Job map status key",
+    JOB_MAP_START_COL: 4
   },
 
   STATUS_KEYS: {
@@ -155,20 +120,80 @@ const CFG = {
       NUM_ROWS: "Selected Rows",
       NEXT_OFFSET: "Resume Position",
       CHUNK_SIZE: "Batch Size",
-      VISIBLE_JOBS: "Visible Jobs",
+      VISIBLE_JOBS: "Visible jobs processed",
       ADDED: "Added",
       DUPES: "Duplicates",
       NO_MATCH: "No Matches",
       ERRORS: "Errors",
+      LAST_ERROR_ROW: "Last Error Row",
+      LAST_ERROR_MESSAGE: "Last Error",
       STARTED_AT: "Started",
       UPDATED_AT: "Updated"
     }
   },
 
-  STATUS_LAYOUT: {
-    HEADER_ROW: 1,
-    NORMALIZE: { START_COL: 1, WIDTH: 2, SPACER_COL: 3 },
-    JOB_MAP: { START_COL: 4, WIDTH: 2, SPACER_COL: 3 }
+
+  STACK_FILTER_TABLE_RANGE: "F1:L16",
+
+  VALUES: {
+    DEFAULT_STACK: "SWE",
+    DEFAULT_REGION: "GEN",
+    PROFILE_DEFAULT_NAME: "Profile",
+    PROFILE_ACTIVE_DEFAULT: "active",
+    PROFILE_INACTIVE: ["inactive", "false", "no", "n", "0", "disabled", "off", ""],
+    PROFILE_OUTPUT_STATUS: {
+      TODO: "TODO",
+      ERROR: "ERROR"
+    },
+    BOOLEAN_TEXT: {
+      TRUE: "TRUE",
+      FALSE: "FALSE",
+      ON: "ON",
+      OFF: "OFF"
+    },
+    RUN_STATE: {
+      READY: "READY",
+      RUNNING: "RUNNING",
+      PAUSED: "PAUSED",
+      DONE: "DONE",
+      ERROR: "ERROR",
+      STOPPED_BEFORE_TIMEOUT: "STOPPED_BEFORE_TIMEOUT"
+    },
+    FILE_LOOKUP: {
+      INVALID_URL: "Invalid URL",
+      NO_ACCESS: "No access",
+      DATE_FORMAT: "MM/dd"
+    }
+
+  },
+
+  STACK_TAGS: {
+
+    SWE: "SWE",
+
+    AI: "AI",
+
+    QA: "QA"
+
+  },
+
+  CHARTS: {
+    DASHBOARD_SHEET: "Dashboard", // where the title source cells live
+    TITLE_RULES: {
+      CHART1: {
+        title: "Dashboard!A2",
+        sheet: "Chart",
+        chartIndex: 0,
+        watchCells: ["C1", "F1"] // start, end
+      },
+
+      CHART2: {
+        title: "Dashboard!A10",
+        sheet: "Chart",
+        chartIndex: 1,
+        watchCells: ["C1", "F1", "A9"] //start, end, status
+      }
+    }
   },
 
   PROFILE_TAB_HEADERS: [
@@ -224,19 +249,13 @@ CFG.MAPPER_STATE_KEY = CFG.JOB_MAPPER.STATE_KEY;
 CFG.MAPPER_CHUNK_SIZE = CFG.JOB_MAPPER.CHUNK_SIZE;
 CFG.MAPPER_MAX_RUNTIME_MS = CFG.JOB_MAPPER.MAX_RUNTIME_MS;
 CFG.MAPPER_LEASE_MS = CFG.MAPPER_MAX_RUNTIME_MS;
+
 CFG.CANONICAL_STACK_TAG_SET = new Set(
   Object.values(CFG.STACK_TAGS).map(v =>
-    String(v)
-      .trim()
-      .toUpperCase()
-      .replace(/\s+/g, "_")
+    String(v).trim().toUpperCase().replace(/\s+/g, "_")
   )
 );
 
 function SHOW_ALL_SCRIPT_PROPERTIES() {
-  Logger.log(
-    PropertiesService
-      .getScriptProperties()
-      .getProperties()
-  );
+  Logger.log(PropertiesService.getScriptProperties().getProperties());
 }

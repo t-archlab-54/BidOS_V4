@@ -30,13 +30,14 @@ function mapSelectedVisibleJobsToProfiles() {
     dupes: 0,
     noMatch: 0,
     errors: 0,
+    lastErrorRow: "",
+    lastErrorMessage: "",
     status: CFG.VALUES.RUN_STATE.RUNNING,
     startedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     leaseUntil: Date.now() + CFG.MAPPER_LEASE_MS
   };
   
-  state.leaseUntil = Date.now() + CFG.MAPPER_LEASE_MS;
   saveJobMapStateFast_(state);
   ensureJobMapStatusSheet_(ss);
   writeJobMapStatus_(ss, state);
@@ -65,6 +66,7 @@ function processJobMapChunks_() {
   const lock = LockService.getDocumentLock();
 
   if (!lock.tryLock(10000)) {
+      SpreadsheetApp.getActive().toast("Job mapper is already running. Try again later.",CFG.APP_NAME,5);
     return;
   }
 
@@ -76,8 +78,12 @@ function processJobMapChunks_() {
     let state = loadJobMapStateFast_();
     if (!state || state.status === CFG.VALUES.RUN_STATE.DONE) return;
 
+    state.status = CFG.VALUES.RUN_STATE.RUNNING;
     state.leaseUntil = Date.now() + CFG.MAPPER_LEASE_MS;
+    state.updatedAt = new Date().toISOString();
+
     saveJobMapStateFast_(state);
+    writeJobMapStatus_(ss, state);
 
     const sheet = ss.getSheetByName(state.jobSheetName);
 
@@ -111,8 +117,9 @@ function processJobMapChunks_() {
 
     while (state.nextOffset < state.numRows) {
       if (Date.now() - started > CFG.MAPPER_MAX_RUNTIME_MS) {
+        state.status = CFG.VALUES.RUN_STATE.PAUSED;
         state.updatedAt = new Date().toISOString();
-        state.leaseUntil = Date.now() + CFG.MAPPER_LEASE_MS;
+        state.leaseUntil = 0;
 
         saveJobMapStateFast_(state);
         writeJobMapStatus_(ss, state);
@@ -242,7 +249,8 @@ function processJobMapChunks_() {
     state.status = CFG.VALUES.RUN_STATE.DONE;
     state.updatedAt = new Date().toISOString();
 
-    state.leaseUntil = Date.now() + CFG.MAPPER_LEASE_MS;
+    state.leaseUntil = 0;
+
     saveJobMapStateFast_(state);
     writeJobMapStatus_(ss, state);
     deleteJobMapTriggers_();
@@ -252,6 +260,24 @@ function processJobMapChunks_() {
       CFG.APP_NAME,
       8
     );
+  } catch (err) {
+    try {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      let state = loadJobMapStateFast_() || {};
+
+      state.status = CFG.VALUES.RUN_STATE.ERROR;
+      state.errors = (state.errors || 0) + 1;
+      state.lastErrorMessage = String(err && err.stack ? err.stack : err);
+      state.updatedAt = new Date().toISOString();
+      state.leaseUntil = 0;
+
+      saveJobMapStateFast_(state);
+      writeJobMapStatus_(ss, state);
+    } catch (statusErr) {
+      console.error("Failed to write job mapper error status:", statusErr);
+    }
+
+    throw err;
   } finally {
     lock.releaseLock();
   }
@@ -260,12 +286,13 @@ function processJobMapChunks_() {
 function readVisibleJobRowsChunkFast_(sheet, state, headers, jobIdCol, lastCol, sheetTag, regions, stackMap) {
   const jobs = [];
   const jobIdWrites = [];
+  const dateWrites = []; 
 
   const take = Math.min(state.chunkSize, state.numRows - state.nextOffset);
-
   const startRow = state.startRow + state.nextOffset;
-
   const values = sheet.getRange(startRow, 1, take, lastCol).getValues();
+
+  const dateCol = getHeaderIndex_(headers, CFG.HEADERS.JOB.DATE) + 1;
 
   for (let i = 0; i < take; i++) {
     const rowNumber = startRow + i;
@@ -283,16 +310,21 @@ function readVisibleJobRowsChunkFast_(sheet, state, headers, jobIdCol, lastCol, 
     let jobId = String(getObjValue_(obj, CFG.HEADERS.JOB.JOB_ID) || "").trim();
 
     if (!jobId) {
-      jobId = sheetTag + String(rowNumber).padStart(6, "0");
+      jobId = "*" + sheetTag.toUpperCase().slice(0, 2) + String(rowNumber).padStart(6, "0");
       jobIdWrites.push({ row: rowNumber, value: jobId });
     }
-
+    let date = getObjValue_(obj, CFG.HEADERS.JOB.DATE);
+    if (!date) {
+      date = Utilities.formatDate(new Date(), SpreadsheetApp.getActive().getSpreadsheetTimeZone(), "MM/dd");
+      dateWrites.push({ row: rowNumber, value: date }) ;
+    }
+   
     const regionTags = parseTags_(getObjValue_(obj, CFG.HEADERS.JOB.REGION_TAGS) || sheetTag);
     const stackTags = parseTags_(getObjValue_(obj, CFG.HEADERS.JOB.STACK_TAGS) || CFG.DEFAULT_STACK);
 
     jobs.push({
       job_id: jobId,
-      date: getObjValue_(obj, CFG.HEADERS.JOB.DATE) || "",
+      date: date,
       job_url: String(getObjValue_(obj, CFG.HEADERS.JOB.JOB_URL)),
       region_tags: regionTags,
       stack_tags: stackTags,
@@ -302,7 +334,9 @@ function readVisibleJobRowsChunkFast_(sheet, state, headers, jobIdCol, lastCol, 
   }
 
   writeSingleColumnRowUpdatesFast_(sheet, jobIdCol, jobIdWrites);
-
+  if (dateCol) {
+    writeSingleColumnRowUpdatesFast_(sheet, dateCol, dateWrites);
+  }
   return { jobs };
 }
 
@@ -652,9 +686,8 @@ function RESET_JOB_MAPPING_STATUS() {
 
   if (sh) {
     const clearRows = Math.max(sh.getLastRow(), 1);
-    sh.getRange(CFG.STATUS_LAYOUT.HEADER_ROW, CFG.STATUS_LAYOUT.JOB_MAP.START_COL, clearRows, CFG.STATUS_LAYOUT.JOB_MAP.WIDTH).clearContent();
+    sh.getRange(CFG.STATUS.HEADER_ROW,CFG.STATUS.JOB_MAP_START_COL,clearRows,CFG.STATUS.BLOCK_WIDTH).clearContent();
   }
-
   ss.toast("Job mapping status reset.", CFG.APP_NAME, 5);
 }
 
@@ -666,12 +699,9 @@ function ensureJobMapStatusSheet_(ss) {
   }
 
   // Job map status lives in D:E. Column C intentionally stays blank as a visual spacer.
-  if (String(sh.getRange(CFG.STATUS_LAYOUT.HEADER_ROW, CFG.STATUS_LAYOUT.JOB_MAP.START_COL).getValue()).trim() !== CFG.HEADERS.STATUS.JOB_MAP_TITLE) {
-    sh.getRange(CFG.STATUS_LAYOUT.HEADER_ROW, CFG.STATUS_LAYOUT.JOB_MAP.START_COL, 1, CFG.STATUS_LAYOUT.JOB_MAP.WIDTH).setValues([
-      [CFG.HEADERS.STATUS.JOB_MAP_TITLE, CFG.HEADERS.STATUS.VALUE]
-    ]);
+  if (String(sh.getRange(CFG.STATUS.HEADER_ROW,CFG.STATUS.JOB_MAP_START_COL).getValue()).trim() !== CFG.STATUS.JOB_MAP_TITLE) {
+      sh.getRange(CFG.STATUS.HEADER_ROW,CFG.STATUS.JOB_MAP_START_COL,1,CFG.STATUS.BLOCK_WIDTH).setValues([[CFG.STATUS.JOB_MAP_TITLE,CFG.STATUS.VALUE]]);
   }
-
   return sh;
 }
 
@@ -691,23 +721,21 @@ function writeJobMapStatus_(ss, state) {
     [k.DUPES, state.dupes],
     [k.NO_MATCH, state.noMatch],
     [k.ERRORS, state.errors || 0],
+    [k.LAST_ERROR_ROW, state.lastErrorRow || ""],
+    [k.LAST_ERROR_MESSAGE, state.lastErrorMessage || ""],
     [k.STARTED_AT, state.startedAt],
     [k.UPDATED_AT, state.updatedAt]
   ];
 
   // Only clear the job-map status block (D:E). Keep A:B for URL normalize status.
   const clearRows = Math.max(sh.getLastRow(), rows.length + 1, 1);
-  sh.getRange(CFG.STATUS_LAYOUT.HEADER_ROW, CFG.STATUS_LAYOUT.JOB_MAP.START_COL, clearRows, CFG.STATUS_LAYOUT.JOB_MAP.WIDTH).clearContent();
 
-  sh.getRange(CFG.STATUS_LAYOUT.HEADER_ROW, CFG.STATUS_LAYOUT.JOB_MAP.START_COL, 1, CFG.STATUS_LAYOUT.JOB_MAP.WIDTH).setValues([
-    [CFG.HEADERS.STATUS.JOB_MAP_TITLE, CFG.HEADERS.STATUS.VALUE]
-  ]);
-
-  sh.getRange(2, CFG.STATUS_LAYOUT.JOB_MAP.START_COL, rows.length, CFG.STATUS_LAYOUT.JOB_MAP.WIDTH).setValues(rows);
-  sh.getRange(CFG.STATUS_LAYOUT.HEADER_ROW, CFG.STATUS_LAYOUT.JOB_MAP.SPACER_COL).setValue("");
-  sh.setFrozenRows(1);
-  // sh.autoResizeColumns(CFG.STATUS_LAYOUT.JOB_MAP.START_COL, CFG.STATUS_LAYOUT.JOB_MAP.WIDTH);
-}
+  sh.getRange(CFG.STATUS.HEADER_ROW,CFG.STATUS.JOB_MAP_START_COL,clearRows,CFG.STATUS.BLOCK_WIDTH).clearContent();
+  sh.getRange(CFG.STATUS.HEADER_ROW,CFG.STATUS.JOB_MAP_START_COL,1,CFG.STATUS.BLOCK_WIDTH).setValues([[CFG.STATUS.JOB_MAP_TITLE,CFG.STATUS.VALUE]]);
+  sh.getRange(CFG.STATUS.HEADER_ROW + 1,CFG.STATUS.JOB_MAP_START_COL,rows.length,CFG.STATUS.BLOCK_WIDTH).setValues(rows);
+  // sh.setFrozenRows(1);
+  // sh.autoResizeColumns(CFG.STATUS.JOB_MAP_START_COL,CFG.STATUS.BLOCK_WIDTH );
+  }
 
 function assertNoFreshRunningJobMap_() {
   const state = loadJobMapStateFast_();

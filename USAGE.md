@@ -198,8 +198,8 @@ A[Import Jobs]
 
 | Menu Item | Purpose |
 |---|---|
-| Map selected jobs to profiles | Route jobs |
-| Resume job mapping | Continue paused mapper |
+| Map selected jobs to profiles | Start a new mapper run from selected visible rows |
+| Resume job mapping | Continue saved `PAUSED` or `ERROR` mapper job |
 | Show job mapping status | View mapper progress |
 | Get File Name | Resolve Drive metadata |
 | Resume normalize | Continue normalizer |
@@ -258,6 +258,14 @@ Warm Cache
 ```
 
 Do NOT forget this step.
+
+
+Rule:
+
+```text
+Map selected jobs = start a new mapper run
+Resume job mapping = continue saved PAUSED or ERROR mapper job
+```
 
 ---
 

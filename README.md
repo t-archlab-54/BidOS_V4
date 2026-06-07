@@ -149,8 +149,8 @@ When the spreadsheet opens, `onOpen()` creates the `BOC-E` menu with these actio
 
 | Menu Item | Function | Purpose |
 |---|---|---|
-| Map selected jobs to profiles | `mapSelectedVisibleJobsToProfiles` | Route selected visible jobs into profile queues. |
-| Resume job mapping | `RESUME_JOB_MAPPING` | Continue a paused mapping job. |
+| Map selected jobs to profiles | `mapSelectedVisibleJobsToProfiles` | Start a new mapper run from the currently selected visible rows. |
+| Resume job mapping | `RESUME_JOB_MAPPING` | Continue the saved mapper state when it is `PAUSED` or `ERROR`. |
 | Show job mapping status | `SHOW_JOB_MAPPING_STATUS` | Write current mapper state to `STATUS`. |
 | Get File Name | `fillFileNamesFromSelection` | Resolve Drive file/folder names and created dates from selected resume URLs. |
 | Resume normalize | `RESUME_NORMALIZE` | Continue a paused URL normalization run. |
@@ -520,8 +520,10 @@ flowchart TD
 3. Select the visible rows to map.
 4. Click **Map selected jobs to profiles**.
 5. Monitor `STATUS`.
-6. If paused, click **Resume job mapping**.
+6. If the mapper is `PAUSED` or `ERROR`, click **Resume job mapping** to continue the saved job.
 7. Review generated profile tabs and `TODO` rows.
+
+> Mapper action rule: **Map selected jobs to profiles** starts a new run from the current selection. **Resume job mapping** continues the existing saved mapper state when the status is `PAUSED` or `ERROR`.
 
 ### 11.5 Completing Resume Metadata
 
@@ -603,7 +605,7 @@ STOPPED_BEFORE_TIMEOUT
 | Problem | Recovery |
 |---|---|
 | Normalizer stopped before timeout | Run `RESUME_NORMALIZE()`. |
-| Mapper paused before timeout | Run `RESUME_JOB_MAPPING()`. |
+| Mapper is `PAUSED` or `ERROR` | Run `RESUME_JOB_MAPPING()` to continue the saved job. |
 | Mapper appears stuck | Check `STATUS`; if lease is stale, reset mapping state. |
 | Rules not applied | Run `UPDATE_RULES_SNAPSHOT_FROM_SHEET()` then `WARM_URL_NORMALIZER_RUNTIME()`. |
 | Wrong URL output | Inspect matching `URL_RULES` row, publish again, clear cache if needed. |
