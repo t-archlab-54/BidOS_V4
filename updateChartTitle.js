@@ -12,7 +12,10 @@ function handleChartEdit_(e) {
     try {
       updateChartTitle_(rule);
     } catch (err) {
-      console.error(`Chart title update failed for ${rule.chart}:`,err && err.stack ? err.stack : err);
+      console.error(
+        `Chart title update failed for ${rule.chart}:`,
+        err && err.stack ? err.stack : err
+      );
     }
   });
 }
